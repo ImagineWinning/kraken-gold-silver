@@ -1,51 +1,205 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Kraken Live Ticker</title>
-    <style>
-        body { background-color: black; color: white; font-family: 'Segoe UI', Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; text-align: center; }
-        #container { width: 90%; }
-        .label { font-size: 24px; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 5px; font-weight: 600; }
-        .gold { color: #FFD700; }
-        .silver { color: #C0C0C0; }
-        .price { font-size: 80px; font-weight: 900; margin-bottom: 25px; line-height: 1; }
-        .unit { font-size: 14px; color: #444; letter-spacing: 1px; margin-top: 10px; }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gold + Silver Spot (Kraken)</title>
+  <style>
+    :root {
+      --bg: #050607;
+      --fg: #f3f6ff;
+      --muted: rgba(243, 246, 255, 0.65);
+      --good: #60ffb0;
+      --bad: #ff6b6b;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    /* Safe padding for circular screens */
+    .wrap {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 10%;
+      box-sizing: border-box;
+    }
+
+    .card {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      align-items: center;
+      text-align: center;
+      gap: 6%;
+    }
+
+    .title {
+      font-size: clamp(14px, 6vw, 34px);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 2%;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8%;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: baseline;
+      gap: 6%;
+      padding: 0 2%;
+    }
+
+    .label {
+      text-align: left;
+      font-size: clamp(14px, 6vw, 40px);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .price {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(16px, 7vw, 48px);
+      font-weight: 800;
+    }
+
+    .sub {
+      font-size: clamp(10px, 4.2vw, 24px);
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 2%;
+      align-items: center;
+    }
+
+    .pill {
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .pill.ok { color: var(--good); }
+    .pill.err { color: var(--bad); }
+  </style>
 </head>
 <body>
-    <div id="container">
-        <div class="label gold">Gold</div>
-        <div id="gold-price" class="price">...</div>
-        <div class="label silver">Silver</div>
-        <div id="silver-price" class="price">...</div>
-        <div class="unit">USD / TROY OZ</div>
+  <div class="wrap">
+    <div class="card">
+      <div class="title">Spot / oz (USD)</div>
+
+      <div class="grid">
+        <div class="row">
+          <div class="label">GOLD</div>
+          <div class="price" id="goldPrice">—</div>
+        </div>
+        <div class="row">
+          <div class="label">SILVER</div>
+          <div class="price" id="silverPrice">—</div>
+        </div>
+      </div>
+
+      <div class="sub">
+        <div class="pill" id="statusPill">Loading…</div>
+        <div class="pill" id="updatedPill">Updated: —</div>
+      </div>
     </div>
+  </div>
 
-    <script>
-        async function updatePrices() {
-            try {
-                // Using a direct, browser-friendly public endpoint
-                const response = await fetch('https://min-api.cryptocompare.com');
-                const data = await response.json();
-                
-                if (data.XAU && data.XAG) {
-                    document.getElementById('gold-price').innerText = "$" + data.XAU.USD.toLocaleString(undefined, {minimumFractionDigits: 2});
-                    document.getElementById('silver-price').innerText = "$" + data.XAG.USD.toLocaleString(undefined, {minimumFractionDigits: 2});
-                }
-            } catch (error) {
-                document.getElementById('gold-price').innerText = "RETRYING";
-                document.getElementById('silver-price').innerText = "RETRYING";
-            }
-        }
+  <script>
+    // Gold-API free endpoints (no key)
+    const ENDPOINTS = {
+      gold: "https://api.gold-api.com/price/XAU",
+      silver: "https://api.gold-api.com/price/XAG",
+    };
 
-        updatePrices();
-        setInterval(updatePrices, 600000); // 10 minutes
-    </script>
+    // Refresh interval (ms). 10–30s is plenty for an LCD.
+    const REFRESH_MS = 15000;
+
+    const elGold = document.getElementById("goldPrice");
+    const elSilver = document.getElementById("silverPrice");
+    const elStatus = document.getElementById("statusPill");
+    const elUpdated = document.getElementById("updatedPill");
+
+    const fmtUSD = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 2,
+    });
+
+    function setStatus(text, ok = true) {
+      elStatus.textContent = text;
+      elStatus.classList.toggle("ok", ok);
+      elStatus.classList.toggle("err", !ok);
+    }
+
+    function setUpdated(iso) {
+      if (!iso) {
+        elUpdated.textContent = "Updated: —";
+        return;
+      }
+      // Show local time (your PC timezone)
+      const d = new Date(iso);
+      const t = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      elUpdated.textContent = `Updated: ${t}`;
+    }
+
+    async function fetchOne(url) {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json(); // { name, price, symbol, updatedAt, updatedAtReadable }
+    }
+
+    async function refresh() {
+      try {
+        setStatus("Updating…", true);
+
+        const [g, s] = await Promise.all([
+          fetchOne(ENDPOINTS.gold),
+          fetchOne(ENDPOINTS.silver),
+        ]);
+
+        // g.price and s.price are per oz USD
+        elGold.textContent = fmtUSD.format(g.price);
+        elSilver.textContent = fmtUSD.format(s.price);
+
+        // Use the newest updatedAt we received
+        const newest = [g.updatedAt, s.updatedAt].filter(Boolean).sort().slice(-1)[0];
+        setUpdated(newest);
+
+        setStatus("Live", true);
+      } catch (err) {
+        console.error(err);
+        setStatus("Error", false);
+      }
+    }
+
+    // If CAM provides window.nzxt.v1.* you can read dimensions like:
+    // const w = window.nzxt?.v1?.width; const h = window.nzxt?.v1?.height;
+
+    refresh();
+    setInterval(refresh, REFRESH_MS);
+  </script>
 </body>
 </html>
-
-
 
 
 
