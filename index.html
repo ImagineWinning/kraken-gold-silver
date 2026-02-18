@@ -1,205 +1,172 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Gold + Silver Spot (Kraken)</title>
-  <style>
-    :root {
-      --bg: #050607;
-      --fg: #f3f6ff;
-      --muted: rgba(243, 246, 255, 0.65);
-      --good: #60ffb0;
-      --bad: #ff6b6b;
-    }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=240, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Gold & Silver Spot</title>
 
-    html, body {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      background: var(--bg);
-      color: var(--fg);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      overflow: hidden;
-    }
+<style>
+  /* Hard lock to 240x240 for Kraken square LCD */
+  html, body {
+    width: 240px;
+    height: 240px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #050607;
+    color: #f4f7ff;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  }
 
-    /* Safe padding for circular screens */
-    .wrap {
-      width: 100%;
-      height: 100%;
-      display: grid;
-      place-items: center;
-      padding: 10%;
-      box-sizing: border-box;
-    }
+  .frame {
+    width: 240px;
+    height: 240px;
+    box-sizing: border-box;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
 
-    .card {
-      width: 100%;
-      height: 100%;
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-      align-items: center;
-      text-align: center;
-      gap: 6%;
-    }
+  .title {
+    text-align: center;
+    font-size: 16px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.6);
+    margin-top: 2px;
+  }
 
-    .title {
-      font-size: clamp(14px, 6vw, 34px);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-top: 2%;
-    }
+  .prices {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    margin-top: 6px;
+  }
 
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 8%;
-    }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
 
-    .row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      align-items: baseline;
-      gap: 6%;
-      padding: 0 2%;
-    }
+  .label {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
 
-    .label {
-      text-align: left;
-      font-size: clamp(14px, 6vw, 40px);
-      font-weight: 700;
-      letter-spacing: 0.02em;
-    }
+  .price {
+    font-size: 26px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
 
-    .price {
-      text-align: right;
-      font-variant-numeric: tabular-nums;
-      font-size: clamp(16px, 7vw, 48px);
-      font-weight: 800;
-    }
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: rgba(255,255,255,0.55);
+  }
 
-    .sub {
-      font-size: clamp(10px, 4.2vw, 24px);
-      color: var(--muted);
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 0 2%;
-      align-items: center;
-    }
-
-    .pill {
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.08);
-      color: var(--muted);
-      white-space: nowrap;
-    }
-
-    .pill.ok { color: var(--good); }
-    .pill.err { color: var(--bad); }
-  </style>
+  .status.ok { color: #5cffb3; }
+  .status.err { color: #ff6b6b; }
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <div class="title">Spot / oz (USD)</div>
+  <div class="frame">
+    <div class="title">Spot / oz USD</div>
 
-      <div class="grid">
-        <div class="row">
-          <div class="label">GOLD</div>
-          <div class="price" id="goldPrice">—</div>
-        </div>
-        <div class="row">
-          <div class="label">SILVER</div>
-          <div class="price" id="silverPrice">—</div>
-        </div>
+    <div class="prices">
+      <div class="row">
+        <div class="label">GOLD</div>
+        <div class="price" id="gold">—</div>
       </div>
 
-      <div class="sub">
-        <div class="pill" id="statusPill">Loading…</div>
-        <div class="pill" id="updatedPill">Updated: —</div>
+      <div class="row">
+        <div class="label">SILVER</div>
+        <div class="price" id="silver">—</div>
       </div>
+    </div>
+
+    <div class="footer">
+      <div id="status" class="status">Loading</div>
+      <div id="updated">--:--</div>
     </div>
   </div>
 
-  <script>
-    // Gold-API free endpoints (no key)
-    const ENDPOINTS = {
-      gold: "https://api.gold-api.com/price/XAU",
-      silver: "https://api.gold-api.com/price/XAG",
-    };
+<script>
+  // Free live spot price API (no key required)
+  const API = {
+    gold: "https://api.gold-api.com/price/XAU",
+    silver: "https://api.gold-api.com/price/XAG"
+  };
 
-    // Refresh interval (ms). 10–30s is plenty for an LCD.
-    const REFRESH_MS = 15000;
+  const REFRESH_MS = 15000; // 15 sec refresh
 
-    const elGold = document.getElementById("goldPrice");
-    const elSilver = document.getElementById("silverPrice");
-    const elStatus = document.getElementById("statusPill");
-    const elUpdated = document.getElementById("updatedPill");
+  const elGold = document.getElementById("gold");
+  const elSilver = document.getElementById("silver");
+  const elStatus = document.getElementById("status");
+  const elUpdated = document.getElementById("updated");
 
-    const fmtUSD = new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 2,
+  const usd = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2
+  });
+
+  function setStatus(text, ok=true) {
+    elStatus.textContent = text;
+    elStatus.classList.toggle("ok", ok);
+    elStatus.classList.toggle("err", !ok);
+  }
+
+  function setTime(iso) {
+    if (!iso) return;
+    const d = new Date(iso);
+    elUpdated.textContent = d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
     });
+  }
 
-    function setStatus(text, ok = true) {
-      elStatus.textContent = text;
-      elStatus.classList.toggle("ok", ok);
-      elStatus.classList.toggle("err", !ok);
+  async function getJSON(url) {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }
+
+  async function refresh() {
+    try {
+      setStatus("Updating…", true);
+
+      const [gold, silver] = await Promise.all([
+        getJSON(API.gold),
+        getJSON(API.silver)
+      ]);
+
+      elGold.textContent = usd.format(gold.price);
+      elSilver.textContent = usd.format(silver.price);
+
+      const newest = [gold.updatedAt, silver.updatedAt]
+        .filter(Boolean)
+        .sort()
+        .pop();
+
+      setTime(newest);
+      setStatus("Live", true);
+    } catch (e) {
+      console.error(e);
+      setStatus("Error", false);
     }
+  }
 
-    function setUpdated(iso) {
-      if (!iso) {
-        elUpdated.textContent = "Updated: —";
-        return;
-      }
-      // Show local time (your PC timezone)
-      const d = new Date(iso);
-      const t = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      elUpdated.textContent = `Updated: ${t}`;
-    }
-
-    async function fetchOne(url) {
-      const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json(); // { name, price, symbol, updatedAt, updatedAtReadable }
-    }
-
-    async function refresh() {
-      try {
-        setStatus("Updating…", true);
-
-        const [g, s] = await Promise.all([
-          fetchOne(ENDPOINTS.gold),
-          fetchOne(ENDPOINTS.silver),
-        ]);
-
-        // g.price and s.price are per oz USD
-        elGold.textContent = fmtUSD.format(g.price);
-        elSilver.textContent = fmtUSD.format(s.price);
-
-        // Use the newest updatedAt we received
-        const newest = [g.updatedAt, s.updatedAt].filter(Boolean).sort().slice(-1)[0];
-        setUpdated(newest);
-
-        setStatus("Live", true);
-      } catch (err) {
-        console.error(err);
-        setStatus("Error", false);
-      }
-    }
-
-    // If CAM provides window.nzxt.v1.* you can read dimensions like:
-    // const w = window.nzxt?.v1?.width; const h = window.nzxt?.v1?.height;
-
-    refresh();
-    setInterval(refresh, REFRESH_MS);
-  </script>
+  refresh();
+  setInterval(refresh, REFRESH_MS);
+</script>
 </body>
 </html>
+
 
 
 
