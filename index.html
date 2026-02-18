@@ -25,29 +25,23 @@
     <script>
         async function updatePrices() {
             try {
-                // Using a more reliable, direct public endpoint
+                // Using CryptoCompare's direct public API
                 const response = await fetch('https://min-api.cryptocompare.com');
                 const data = await response.json();
                 
                 if (data.XAU && data.XAG) {
-                    // Update Gold
                     document.getElementById('gold-price').innerText = "$" + data.XAU.USD.toLocaleString(undefined, {minimumFractionDigits: 2});
-                    // Update Silver
                     document.getElementById('silver-price').innerText = "$" + data.XAG.USD.toLocaleString(undefined, {minimumFractionDigits: 2});
-                } else {
-                    throw new Error("Data incomplete");
                 }
             } catch (error) {
-                console.error("Fetch Error:", error);
-                document.getElementById('gold-price').innerText = "LOADING";
-                document.getElementById('silver-price').innerText = "LOADING";
-                // Auto-retry in 30 seconds if it fails
-                setTimeout(updatePrices, 30000);
+                document.getElementById('gold-price').innerText = "OFFLINE";
+                document.getElementById('silver-price').innerText = "OFFLINE";
             }
         }
 
         updatePrices();
-        setInterval(updatePrices, 600000); // 10 minutes
+        // Refresh every 10 minutes (600,000ms)
+        setInterval(updatePrices, 600000); 
     </script>
 </body>
 </html>
