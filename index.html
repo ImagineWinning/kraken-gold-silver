@@ -25,31 +25,32 @@
     <script>
         async function updatePrices() {
             try {
-                // AllOrigins proxy bypasses CORS blocks on GitHub Pages
-                const url = `https://api.allorigins.win{encodeURIComponent('https://data-asg.goldprice.org')}&callback=?`;
+                // Using a more reliable, direct public endpoint
+                const response = await fetch('https://min-api.cryptocompare.com');
+                const data = await response.json();
                 
-                const response = await fetch(url);
-                const result = await response.json();
-                
-                // Parsing the contents returned by the proxy
-                const data = JSON.parse(result.contents);
-                
-                if (data && data.items && data.items[0]) {
-                    const stats = data.items[0];
-                    document.getElementById('gold-price').innerText = "$" + stats.xauPrice.toLocaleString(undefined, {minimumFractionDigits: 2});
-                    document.getElementById('silver-price').innerText = "$" + stats.xagPrice.toLocaleString(undefined, {minimumFractionDigits: 2});
+                if (data.XAU && data.XAG) {
+                    // Update Gold
+                    document.getElementById('gold-price').innerText = "$" + data.XAU.USD.toLocaleString(undefined, {minimumFractionDigits: 2});
+                    // Update Silver
+                    document.getElementById('silver-price').innerText = "$" + data.XAG.USD.toLocaleString(undefined, {minimumFractionDigits: 2});
+                } else {
+                    throw new Error("Data incomplete");
                 }
             } catch (error) {
                 console.error("Fetch Error:", error);
-                document.getElementById('gold-price').innerText = "RETRYING";
-                document.getElementById('silver-price').innerText = "RETRYING";
+                document.getElementById('gold-price').innerText = "LOADING";
+                document.getElementById('silver-price').innerText = "LOADING";
+                // Auto-retry in 30 seconds if it fails
+                setTimeout(updatePrices, 30000);
             }
         }
 
         updatePrices();
-        setInterval(updatePrices, 300000); // Refreshes every 5 minutes
+        setInterval(updatePrices, 600000); // 10 minutes
     </script>
 </body>
 </html>
+
 
 
