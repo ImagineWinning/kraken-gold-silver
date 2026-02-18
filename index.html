@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Kraken Ticker</title>
+    <style>
+        body { background-color: black; color: white; font-family: 'Segoe UI', Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; text-align: center; }
+        #container { width: 90%; }
+        .label { font-size: 24px; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 2px; font-weight: 600; }
+        .gold { color: #FFD700; }
+        .silver { color: #C0C0C0; }
+        .price { font-size: 80px; font-weight: 900; margin-bottom: 20px; }
+        .unit { font-size: 14px; color: #444; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div class="label gold">Gold</div>
+        <div id="XAU" class="price">...</div>
+        <div class="label silver">Silver</div>
+        <div id="XAG" class="price">...</div>
+        <div class="unit">USD / TROY OZ</div>
+    </div>
+
+    <script>
+        async function getPrice(metal) {
+            try {
+                const response = await fetch(`https://www.goldapi.io{metal}/USD`, {
+                    method: 'GET',
+                    headers: {
+                        "x-access-token": "goldapi-5rs3osmlrifcqo-io",
+                        "Content-Type": "application/json"
+                    }
+                });
+                const data = await response.json();
+                if (data.price) {
+                    document.getElementById(metal).innerText = "$" + data.price.toLocaleString(undefined, {minimumFractionDigits: 2});
+                } else {
+                    document.getElementById(metal).innerText = "LIMIT";
+                }
+            } catch (e) {
+                document.getElementById(metal).innerText = "ERROR";
+            }
+        }
+
+        function update() {
+            getPrice("XAU");
+            getPrice("XAG");
+        }
+
+        update();
+        setInterval(update, 600000); // 10 minutes
+    </script>
+</body>
+</html>
+
