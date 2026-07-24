@@ -53,7 +53,7 @@
     white-space: nowrap;
   }
 
-  /* Gold/Silver ratio — same size and brightness */
+  /* Gold/Silver ratio */
   .ratio {
     font-size: 46px;
     font-weight: 900;
@@ -74,8 +74,13 @@
     color: rgba(255,255,255,0.4);
   }
 
-  .status.ok { color: #5cffb3; }
-  .status.err { color: #ff6b6b; }
+  .status.ok {
+    color: #5cffb3;
+  }
+
+  .status.err {
+    color: #ff6b6b;
+  }
 </style>
 </head>
 
@@ -109,6 +114,7 @@
     silver: "https://api.gold-api.com/price/XAG"
   };
 
+  // Refresh every 15 seconds
   const REFRESH_MS = 15000;
 
   const elGold = document.getElementById("gold");
@@ -124,7 +130,7 @@
     maximumFractionDigits: 0
   });
 
-  // Silver — two decimal places
+  // Silver — keep cents
   const silverUSD = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -132,7 +138,7 @@
     maximumFractionDigits: 2
   });
 
-  function setStatus(text, ok=true) {
+  function setStatus(text, ok = true) {
     elStatus.textContent = text;
     elStatus.classList.toggle("ok", ok);
     elStatus.classList.toggle("err", !ok);
@@ -154,8 +160,9 @@
       cache: "no-store"
     });
 
-    if (!res.ok)
+    if (!res.ok) {
       throw new Error("HTTP " + res.status);
+    }
 
     return res.json();
   }
@@ -171,17 +178,22 @@
         getJSON(API.silver)
       ]);
 
+      // Gold price — rounded to nearest whole dollar
       elGold.textContent =
         goldUSD.format(gold.price);
 
+      // Silver price — two decimal places
       elSilver.textContent =
         silverUSD.format(silver.price);
 
+      // Gold/Silver ratio calculated using
+      // the full unrounded API prices
       const ratio =
         gold.price / silver.price;
 
+      // Display ratio as nearest whole number
       elRatio.textContent =
-        "G/S " + ratio.toFixed(1);
+        "G/S " + Math.round(ratio);
 
       const newest =
         [gold.updatedAt, silver.updatedAt]
@@ -199,7 +211,10 @@
     }
   }
 
+  // Load immediately
   refresh();
+
+  // Then update every 15 seconds
   setInterval(refresh, REFRESH_MS);
 
 </script>
