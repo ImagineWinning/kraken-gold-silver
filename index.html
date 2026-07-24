@@ -44,7 +44,14 @@
     margin-bottom: 3px;
   }
 
-  /* Main price styling */
+  .price-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+
   .price {
     font-size: 46px;
     font-weight: 900;
@@ -53,37 +60,53 @@
     white-space: nowrap;
   }
 
-  /* Gold price */
   #gold {
     color: #FFD700;
   }
 
-  /* Silver price */
   #silver {
     color: #C0C0C0;
   }
 
-  /* Gold/Silver ratio */
+  .arrow {
+    min-width: 22px;
+    font-size: 21px;
+    font-weight: 900;
+    line-height: 0.75;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .arrow.up {
+    color: #39ff88;
+  }
+
+  .arrow.down {
+    color: #ff4d4d;
+  }
+
+  .arrow.flat {
+    color: #777777;
+  }
+
   .ratio {
     font-size: 46px;
     font-weight: 900;
     font-variant-numeric: tabular-nums;
     line-height: 1;
     white-space: nowrap;
-    color: #FFFFFF;
   }
 
-  /* G/S ratio 60 or below */
   .ratio.gold {
     color: #FFD700;
   }
 
-  /* G/S ratio above 85 */
   .ratio.silver {
     color: #C0C0C0;
   }
 
-  /* G/S ratio between 60 and 85 */
   .ratio.white {
     color: #FFFFFF;
   }
@@ -111,29 +134,36 @@
 
 <body>
 
-  <div class="frame">
+<div class="frame">
 
-    <!-- GOLD -->
-    <div class="block">
-      <div class="label">Gold</div>
+  <div class="block">
+    <div class="label">Gold</div>
+
+    <div class="price-row">
       <div class="price" id="gold">—</div>
+      <div class="arrow flat" id="goldArrow">•</div>
     </div>
+  </div>
 
-    <!-- SILVER -->
-    <div class="block">
-      <div class="label">Silver</div>
+  <div class="block">
+    <div class="label">Silver</div>
+
+    <div class="price-row">
       <div class="price" id="silver">—</div>
+      <div class="arrow flat" id="silverArrow">•</div>
     </div>
-
-    <!-- GOLD / SILVER RATIO -->
-    <div class="ratio white" id="ratio">G/S —</div>
-
   </div>
 
-  <div class="footer">
-    <div id="status" class="status">Loading</div>
-    <div id="updated">--:--</div>
+  <div class="ratio white" id="ratio">
+    G/S —
   </div>
+
+</div>
+
+<div class="footer">
+  <div id="status" class="status">Loading</div>
+  <div id="updated">--:--</div>
+</div>
 
 <script>
 
@@ -142,49 +172,83 @@
     silver: "https://api.gold-api.com/price/XAG"
   };
 
-  // Refresh API every 15 seconds
+  const COMEX = {
+    gold:
+      "https://query1.finance.yahoo.com/v8/finance/chart/GC%3DF?range=5d&interval=1d&corsDomain=finance.yahoo.com",
+
+    silver:
+      "https://query1.finance.yahoo.com/v8/finance/chart/SI%3DF?range=5d&interval=1d&corsDomain=finance.yahoo.com"
+  };
+
   const REFRESH_MS = 15000;
 
-  const elGold = document.getElementById("gold");
-  const elSilver = document.getElementById("silver");
-  const elRatio = document.getElementById("ratio");
-  const elStatus = document.getElementById("status");
-  const elUpdated = document.getElementById("updated");
+  const CLOSE_REFRESH_MS =
+    15 * 60 * 1000;
 
-  /*
-    GOLD
-    Display nearest whole dollar.
-  */
-  const goldUSD = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0
-  });
+  const BIG_MOVE_THRESHOLD = 10;
 
-  /*
-    SILVER
-    Display two decimal places.
-  */
-  const silverUSD = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+  const elGold =
+    document.getElementById("gold");
+
+  const elSilver =
+    document.getElementById("silver");
+
+  const elGoldArrow =
+    document.getElementById("goldArrow");
+
+  const elSilverArrow =
+    document.getElementById("silverArrow");
+
+  const elRatio =
+    document.getElementById("ratio");
+
+  const elStatus =
+    document.getElementById("status");
+
+  const elUpdated =
+    document.getElementById("updated");
+
+  let previousClose = {
+    gold: null,
+    silver: null
+  };
+
+  const goldUSD =
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0
+    });
+
+  const silverUSD =
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
 
   function setStatus(text, ok = true) {
 
     elStatus.textContent = text;
 
-    elStatus.classList.toggle("ok", ok);
-    elStatus.classList.toggle("err", !ok);
+    elStatus.classList.toggle(
+      "ok",
+      ok
+    );
+
+    elStatus.classList.toggle(
+      "err",
+      !ok
+    );
   }
 
   function setTime(iso) {
 
     if (!iso) return;
 
-    const d = new Date(iso);
+    const d =
+      new Date(iso);
 
     elUpdated.textContent =
       d.toLocaleTimeString([], {
@@ -195,27 +259,216 @@
 
   async function getJSON(url) {
 
+    const separator =
+      url.includes("?")
+        ? "&"
+        : "?";
+
+    const requestURL =
+      url +
+      separator +
+      "_=" +
+      Date.now();
+
     const res =
-      await fetch(url, {
-        cache: "no-store"
-      });
+      await fetch(
+        requestURL,
+        {
+          cache: "no-store"
+        }
+      );
 
     if (!res.ok) {
+
       throw new Error(
-        "HTTP " + res.status
+        "HTTP " +
+        res.status
       );
     }
 
     return res.json();
   }
 
-  /*
-    Change G/S ratio color:
+  async function getPreviousClose(url) {
 
-    60 or below = GOLD
-    Above 60 through 85 = WHITE
-    Above 85 = SILVER
-  */
+    const data =
+      await getJSON(url);
+
+    const result =
+      data?.chart?.result?.[0];
+
+    if (!result) {
+
+      throw new Error(
+        "No futures data"
+      );
+    }
+
+    let close =
+      result.meta?.chartPreviousClose;
+
+    if (
+      typeof close !== "number"
+    ) {
+
+      close =
+        result.meta?.previousClose;
+    }
+
+    if (
+      typeof close !== "number"
+    ) {
+
+      const closes =
+        result
+          ?.indicators
+          ?.quote?.[0]
+          ?.close
+          ?.filter(
+            value =>
+              typeof value === "number"
+          );
+
+      if (
+        closes &&
+        closes.length >= 2
+      ) {
+
+        close =
+          closes[
+            closes.length - 2
+          ];
+      }
+    }
+
+    if (
+      typeof close !== "number"
+    ) {
+
+      throw new Error(
+        "Previous close unavailable"
+      );
+    }
+
+    return close;
+  }
+
+  async function refreshPreviousClose() {
+
+    try {
+
+      const [
+        goldClose,
+        silverClose
+      ] =
+        await Promise.all([
+
+          getPreviousClose(
+            COMEX.gold
+          ),
+
+          getPreviousClose(
+            COMEX.silver
+          )
+        ]);
+
+      previousClose.gold =
+        goldClose;
+
+      previousClose.silver =
+        silverClose;
+
+      localStorage.setItem(
+        "comexPreviousClose",
+        JSON.stringify(
+          previousClose
+        )
+      );
+
+    } catch (e) {
+
+      console.error(
+        "COMEX close error:",
+        e
+      );
+
+      try {
+
+        const saved =
+          JSON.parse(
+            localStorage.getItem(
+              "comexPreviousClose"
+            )
+          );
+
+        if (
+          saved &&
+          typeof saved.gold === "number" &&
+          typeof saved.silver === "number"
+        ) {
+
+          previousClose =
+            saved;
+        }
+
+      } catch (_) {}
+    }
+  }
+
+  function updateArrow(
+    element,
+    currentPrice,
+    previousPrice
+  ) {
+
+    element.classList.remove(
+      "up",
+      "down",
+      "flat"
+    );
+
+    if (
+      typeof previousPrice !== "number" ||
+      previousPrice === 0
+    ) {
+
+      element.textContent = "•";
+      element.classList.add("flat");
+      return;
+    }
+
+    const percentMove =
+      ((currentPrice - previousPrice) /
+      previousPrice) * 100;
+
+    const bigMove =
+      Math.abs(percentMove) > BIG_MOVE_THRESHOLD;
+
+    if (percentMove > 0) {
+
+      element.innerHTML =
+        bigMove
+          ? "<span>▲</span><span>▲</span>"
+          : "<span>▲</span>";
+
+      element.classList.add("up");
+
+    } else if (percentMove < 0) {
+
+      element.innerHTML =
+        bigMove
+          ? "<span>▼</span><span>▼</span>"
+          : "<span>▼</span>";
+
+      element.classList.add("down");
+
+    } else {
+
+      element.textContent = "•";
+      element.classList.add("flat");
+    }
+  }
+
   function setRatioColor(ratio) {
 
     elRatio.classList.remove(
@@ -226,16 +479,21 @@
 
     if (ratio <= 60) {
 
-      elRatio.classList.add("gold");
+      elRatio.classList.add(
+        "gold"
+      );
 
     } else if (ratio > 85) {
 
-      elRatio.classList.add("silver");
+      elRatio.classList.add(
+        "silver"
+      );
 
     } else {
 
-      elRatio.classList.add("white");
-
+      elRatio.classList.add(
+        "white"
+      );
     }
   }
 
@@ -243,64 +501,60 @@
 
     try {
 
-      setStatus("Live", true);
+      setStatus(
+        "Live",
+        true
+      );
 
-      /*
-        Fetch Gold + Silver simultaneously
-      */
-      const [gold, silver] =
+      const [
+        gold,
+        silver
+      ] =
         await Promise.all([
 
-          getJSON(API.gold),
+          getJSON(
+            API.gold
+          ),
 
-          getJSON(API.silver)
-
+          getJSON(
+            API.silver
+          )
         ]);
 
-      /*
-        GOLD
-        Nearest whole dollar
-      */
       elGold.textContent =
         goldUSD.format(
           gold.price
         );
 
-      /*
-        SILVER
-        Keep cents
-      */
       elSilver.textContent =
         silverUSD.format(
           silver.price
         );
 
-      /*
-        GOLD / SILVER RATIO
+      updateArrow(
+        elGoldArrow,
+        gold.price,
+        previousClose.gold
+      );
 
-        IMPORTANT:
-        Calculation uses the FULL
-        unrounded API prices.
-      */
+      updateArrow(
+        elSilverArrow,
+        silver.price,
+        previousClose.silver
+      );
+
       const ratio =
         gold.price /
         silver.price;
 
-      /*
-        Display nearest whole ratio.
-      */
       elRatio.textContent =
         "G/S " +
         Math.round(ratio);
 
-      /*
-        Apply ratio color.
-      */
-      setRatioColor(ratio);
+      setRatioColor(
+        ratio
+      );
 
-      /*
-        Use newest API timestamp.
-      */
       const newest =
         [
           gold.updatedAt,
@@ -310,11 +564,11 @@
         .sort()
         .pop();
 
-      setTime(newest);
+      setTime(
+        newest
+      );
 
-    }
-
-    catch (e) {
+    } catch (e) {
 
       console.error(e);
 
@@ -322,21 +576,20 @@
         "Error",
         false
       );
-
     }
   }
 
-  /*
-    Load immediately
-  */
-  refresh();
+  refreshPreviousClose()
+    .then(refresh);
 
-  /*
-    Then update every 15 seconds
-  */
   setInterval(
     refresh,
     REFRESH_MS
+  );
+
+  setInterval(
+    refreshPreviousClose,
+    CLOSE_REFRESH_MS
   );
 
 </script>
