@@ -23,7 +23,7 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 22px;
+    gap: 18px;
     padding: 14px;
     box-sizing: border-box;
     text-align: center;
@@ -35,20 +35,27 @@
     align-items: center;
   }
 
-  /* Auto-fit label text */
   .label {
     font-weight: 800;
     letter-spacing: 0.06em;
     opacity: 0.8;
     line-height: 1;
     margin-bottom: 4px;
-    font-size: clamp(14px, 8vw, 22px); /* scales to fit width */
+    font-size: clamp(14px, 8vw, 22px);
   }
 
   .price {
-    font-size: 46px; /* unchanged as requested */
+    font-size: 46px;
     font-weight: 900;
     font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .ratio {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: rgba(255,255,255,0.65);
     line-height: 1;
   }
 
@@ -67,8 +74,11 @@
   .status.err { color: #ff6b6b; }
 </style>
 </head>
+
 <body>
+
   <div class="frame">
+
     <div class="block">
       <div class="label">Gold</div>
       <div class="price" id="gold">—</div>
@@ -78,6 +88,11 @@
       <div class="label">Silver</div>
       <div class="price" id="silver">—</div>
     </div>
+
+    <div class="ratio" id="ratio">
+      G/S —
+    </div>
+
   </div>
 
   <div class="footer">
@@ -86,6 +101,7 @@
   </div>
 
 <script>
+
   const API = {
     gold: "https://api.gold-api.com/price/XAU",
     silver: "https://api.gold-api.com/price/XAG"
@@ -95,12 +111,22 @@
 
   const elGold = document.getElementById("gold");
   const elSilver = document.getElementById("silver");
+  const elRatio = document.getElementById("ratio");
   const elStatus = document.getElementById("status");
   const elUpdated = document.getElementById("updated");
 
-  const usd = new Intl.NumberFormat("en-US", {
+  // Gold = whole dollars only
+  const goldUSD = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
+    maximumFractionDigits: 0
+  });
+
+  // Silver = keep cents
+  const silverUSD = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
 
@@ -112,7 +138,9 @@
 
   function setTime(iso) {
     if (!iso) return;
+
     const d = new Date(iso);
+
     elUpdated.textContent = d.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit"
@@ -120,13 +148,21 @@
   }
 
   async function getJSON(url) {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
+
+    const res = await fetch(url, {
+      cache: "no-store"
+    });
+
+    if (!res.ok)
+      throw new Error("HTTP " + res.status);
+
     return res.json();
   }
 
   async function refresh() {
+
     try {
+
       setStatus("Live", true);
 
       const [gold, silver] = await Promise.all([
@@ -134,28 +170,47 @@
         getJSON(API.silver)
       ]);
 
-      elGold.textContent = usd.format(gold.price);
-      elSilver.textContent = usd.format(silver.price);
+      // GOLD — no cents
+      elGold.textContent =
+        goldUSD.format(gold.price);
 
-      const newest = [gold.updatedAt, silver.updatedAt]
+      // SILVER — cents retained
+      elSilver.textContent =
+        silverUSD.format(silver.price);
+
+      // GOLD / SILVER RATIO
+      const ratio =
+        gold.price / silver.price;
+
+      elRatio.textContent =
+        "G/S " + ratio.toFixed(1);
+
+      const newest =
+        [gold.updatedAt, silver.updatedAt]
         .filter(Boolean)
         .sort()
         .pop();
 
       setTime(newest);
-    } catch (e) {
+
+    }
+
+    catch (e) {
+
       console.error(e);
       setStatus("Error", false);
+
     }
   }
 
   refresh();
-  setInterval(refresh, REFRESH_MS);
+
+  setInterval(
+    refresh,
+    REFRESH_MS
+  );
+
 </script>
+
 </body>
 </html>
-
-
-
-
-
