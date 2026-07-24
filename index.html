@@ -44,7 +44,7 @@
     margin-bottom: 3px;
   }
 
-  /* Gold & Silver prices */
+  /* Main price styling */
   .price {
     font-size: 46px;
     font-weight: 900;
@@ -53,14 +53,39 @@
     white-space: nowrap;
   }
 
+  /* Gold price */
+  #gold {
+    color: #FFD700;
+  }
+
+  /* Silver price */
+  #silver {
+    color: #C0C0C0;
+  }
+
   /* Gold/Silver ratio */
   .ratio {
     font-size: 46px;
     font-weight: 900;
     font-variant-numeric: tabular-nums;
     line-height: 1;
-    color: #ffffff;
     white-space: nowrap;
+    color: #FFFFFF;
+  }
+
+  /* G/S ratio 60 or below */
+  .ratio.gold {
+    color: #FFD700;
+  }
+
+  /* G/S ratio above 85 */
+  .ratio.silver {
+    color: #C0C0C0;
+  }
+
+  /* G/S ratio between 60 and 85 */
+  .ratio.white {
+    color: #FFFFFF;
   }
 
   .footer {
@@ -88,17 +113,20 @@
 
   <div class="frame">
 
+    <!-- GOLD -->
     <div class="block">
       <div class="label">Gold</div>
       <div class="price" id="gold">—</div>
     </div>
 
+    <!-- SILVER -->
     <div class="block">
       <div class="label">Silver</div>
       <div class="price" id="silver">—</div>
     </div>
 
-    <div class="ratio" id="ratio">G/S —</div>
+    <!-- GOLD / SILVER RATIO -->
+    <div class="ratio white" id="ratio">G/S —</div>
 
   </div>
 
@@ -114,7 +142,7 @@
     silver: "https://api.gold-api.com/price/XAG"
   };
 
-  // Refresh every 15 seconds
+  // Refresh API every 15 seconds
   const REFRESH_MS = 15000;
 
   const elGold = document.getElementById("gold");
@@ -123,14 +151,20 @@
   const elStatus = document.getElementById("status");
   const elUpdated = document.getElementById("updated");
 
-  // Gold — whole dollars
+  /*
+    GOLD
+    Display nearest whole dollar.
+  */
   const goldUSD = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0
   });
 
-  // Silver — keep cents
+  /*
+    SILVER
+    Display two decimal places.
+  */
   const silverUSD = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -139,32 +173,70 @@
   });
 
   function setStatus(text, ok = true) {
+
     elStatus.textContent = text;
+
     elStatus.classList.toggle("ok", ok);
     elStatus.classList.toggle("err", !ok);
   }
 
   function setTime(iso) {
+
     if (!iso) return;
 
     const d = new Date(iso);
 
-    elUpdated.textContent = d.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit"
-    });
+    elUpdated.textContent =
+      d.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
   }
 
   async function getJSON(url) {
-    const res = await fetch(url, {
-      cache: "no-store"
-    });
+
+    const res =
+      await fetch(url, {
+        cache: "no-store"
+      });
 
     if (!res.ok) {
-      throw new Error("HTTP " + res.status);
+      throw new Error(
+        "HTTP " + res.status
+      );
     }
 
     return res.json();
+  }
+
+  /*
+    Change G/S ratio color:
+
+    60 or below = GOLD
+    Above 60 through 85 = WHITE
+    Above 85 = SILVER
+  */
+  function setRatioColor(ratio) {
+
+    elRatio.classList.remove(
+      "gold",
+      "silver",
+      "white"
+    );
+
+    if (ratio <= 60) {
+
+      elRatio.classList.add("gold");
+
+    } else if (ratio > 85) {
+
+      elRatio.classList.add("silver");
+
+    } else {
+
+      elRatio.classList.add("white");
+
+    }
   }
 
   async function refresh() {
@@ -173,49 +245,99 @@
 
       setStatus("Live", true);
 
-      const [gold, silver] = await Promise.all([
-        getJSON(API.gold),
-        getJSON(API.silver)
-      ]);
+      /*
+        Fetch Gold + Silver simultaneously
+      */
+      const [gold, silver] =
+        await Promise.all([
 
-      // Gold price — rounded to nearest whole dollar
+          getJSON(API.gold),
+
+          getJSON(API.silver)
+
+        ]);
+
+      /*
+        GOLD
+        Nearest whole dollar
+      */
       elGold.textContent =
-        goldUSD.format(gold.price);
+        goldUSD.format(
+          gold.price
+        );
 
-      // Silver price — two decimal places
+      /*
+        SILVER
+        Keep cents
+      */
       elSilver.textContent =
-        silverUSD.format(silver.price);
+        silverUSD.format(
+          silver.price
+        );
 
-      // Gold/Silver ratio calculated using
-      // the full unrounded API prices
+      /*
+        GOLD / SILVER RATIO
+
+        IMPORTANT:
+        Calculation uses the FULL
+        unrounded API prices.
+      */
       const ratio =
-        gold.price / silver.price;
+        gold.price /
+        silver.price;
 
-      // Display ratio as nearest whole number
+      /*
+        Display nearest whole ratio.
+      */
       elRatio.textContent =
-        "G/S " + Math.round(ratio);
+        "G/S " +
+        Math.round(ratio);
 
+      /*
+        Apply ratio color.
+      */
+      setRatioColor(ratio);
+
+      /*
+        Use newest API timestamp.
+      */
       const newest =
-        [gold.updatedAt, silver.updatedAt]
+        [
+          gold.updatedAt,
+          silver.updatedAt
+        ]
         .filter(Boolean)
         .sort()
         .pop();
 
       setTime(newest);
 
-    } catch (e) {
+    }
+
+    catch (e) {
 
       console.error(e);
-      setStatus("Error", false);
+
+      setStatus(
+        "Error",
+        false
+      );
 
     }
   }
 
-  // Load immediately
+  /*
+    Load immediately
+  */
   refresh();
 
-  // Then update every 15 seconds
-  setInterval(refresh, REFRESH_MS);
+  /*
+    Then update every 15 seconds
+  */
+  setInterval(
+    refresh,
+    REFRESH_MS
+  );
 
 </script>
 
