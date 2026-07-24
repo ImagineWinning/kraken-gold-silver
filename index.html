@@ -138,7 +138,6 @@
 
   <div class="block">
     <div class="label">Gold</div>
-
     <div class="price-row">
       <div class="price" id="gold">—</div>
       <div class="arrow flat" id="goldArrow">•</div>
@@ -147,16 +146,13 @@
 
   <div class="block">
     <div class="label">Silver</div>
-
     <div class="price-row">
       <div class="price" id="silver">—</div>
       <div class="arrow flat" id="silverArrow">•</div>
     </div>
   </div>
 
-  <div class="ratio white" id="ratio">
-    G/S —
-  </div>
+  <div class="ratio white" id="ratio">G/S —</div>
 
 </div>
 
@@ -174,244 +170,114 @@
 
   const COMEX = {
     gold:
-      "https://query1.finance.yahoo.com/v8/finance/chart/GC%3DF?range=5d&interval=1d&corsDomain=finance.yahoo.com",
-
+      "https://query1.finance.yahoo.com/v8/finance/chart/GC%3DF?range=5d&interval=1d",
     silver:
-      "https://query1.finance.yahoo.com/v8/finance/chart/SI%3DF?range=5d&interval=1d&corsDomain=finance.yahoo.com"
+      "https://query1.finance.yahoo.com/v8/finance/chart/SI%3DF?range=5d&interval=1d"
   };
 
   const REFRESH_MS = 15000;
-
-  const CLOSE_REFRESH_MS =
-    15 * 60 * 1000;
-
+  const CLOSE_REFRESH_MS = 15 * 60 * 1000;
   const BIG_MOVE_THRESHOLD = 10;
 
-  const elGold =
-    document.getElementById("gold");
-
-  const elSilver =
-    document.getElementById("silver");
-
-  const elGoldArrow =
-    document.getElementById("goldArrow");
-
-  const elSilverArrow =
-    document.getElementById("silverArrow");
-
-  const elRatio =
-    document.getElementById("ratio");
-
-  const elStatus =
-    document.getElementById("status");
-
-  const elUpdated =
-    document.getElementById("updated");
+  const elGold = document.getElementById("gold");
+  const elSilver = document.getElementById("silver");
+  const elGoldArrow = document.getElementById("goldArrow");
+  const elSilverArrow = document.getElementById("silverArrow");
+  const elRatio = document.getElementById("ratio");
+  const elStatus = document.getElementById("status");
+  const elUpdated = document.getElementById("updated");
 
   let previousClose = {
     gold: null,
     silver: null
   };
 
-  const goldUSD =
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0
-    });
+  let currentSpot = {
+    gold: null,
+    silver: null
+  };
 
-  const silverUSD =
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+  const goldUSD = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0
+  });
+
+  const silverUSD = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
 
   function setStatus(text, ok = true) {
-
     elStatus.textContent = text;
-
-    elStatus.classList.toggle(
-      "ok",
-      ok
-    );
-
-    elStatus.classList.toggle(
-      "err",
-      !ok
-    );
+    elStatus.classList.toggle("ok", ok);
+    elStatus.classList.toggle("err", !ok);
   }
 
   function setTime(iso) {
-
     if (!iso) return;
 
-    const d =
-      new Date(iso);
+    const d = new Date(iso);
 
-    elUpdated.textContent =
-      d.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit"
-      });
+    elUpdated.textContent = d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
   }
 
-  async function getJSON(url) {
-
-    const separator =
-      url.includes("?")
-        ? "&"
-        : "?";
-
-    const requestURL =
-      url +
-      separator +
-      "_=" +
-      Date.now();
-
-    const res =
-      await fetch(
-        requestURL,
-        {
-          cache: "no-store"
-        }
-      );
+  /*
+    Spot-price fetch.
+    This intentionally stays simple because
+    this is the version already known to work.
+  */
+  async function getSpotJSON(url) {
+    const res = await fetch(url, {
+      cache: "no-store"
+    });
 
     if (!res.ok) {
-
-      throw new Error(
-        "HTTP " +
-        res.status
-      );
+      throw new Error("HTTP " + res.status);
     }
 
     return res.json();
   }
 
-  async function getPreviousClose(url) {
+  /*
+    Separate futures fetch.
+    Failure here cannot stop spot prices.
+  */
+  async function getFuturesJSON(url) {
+    const separator = url.includes("?") ? "&" : "?";
 
-    const data =
-      await getJSON(url);
-
-    const result =
-      data?.chart?.result?.[0];
-
-    if (!result) {
-
-      throw new Error(
-        "No futures data"
-      );
-    }
-
-    let close =
-      result.meta?.chartPreviousClose;
-
-    if (
-      typeof close !== "number"
-    ) {
-
-      close =
-        result.meta?.previousClose;
-    }
-
-    if (
-      typeof close !== "number"
-    ) {
-
-      const closes =
-        result
-          ?.indicators
-          ?.quote?.[0]
-          ?.close
-          ?.filter(
-            value =>
-              typeof value === "number"
-          );
-
-      if (
-        closes &&
-        closes.length >= 2
-      ) {
-
-        close =
-          closes[
-            closes.length - 2
-          ];
+    const res = await fetch(
+      url + separator + "_=" + Date.now(),
+      {
+        cache: "no-store"
       }
+    );
+
+    if (!res.ok) {
+      throw new Error("HTTP " + res.status);
     }
 
-    if (
-      typeof close !== "number"
-    ) {
-
-      throw new Error(
-        "Previous close unavailable"
-      );
-    }
-
-    return close;
+    return res.json();
   }
 
-  async function refreshPreviousClose() {
+  function setRatioColor(ratio) {
+    elRatio.classList.remove(
+      "gold",
+      "silver",
+      "white"
+    );
 
-    try {
-
-      const [
-        goldClose,
-        silverClose
-      ] =
-        await Promise.all([
-
-          getPreviousClose(
-            COMEX.gold
-          ),
-
-          getPreviousClose(
-            COMEX.silver
-          )
-        ]);
-
-      previousClose.gold =
-        goldClose;
-
-      previousClose.silver =
-        silverClose;
-
-      localStorage.setItem(
-        "comexPreviousClose",
-        JSON.stringify(
-          previousClose
-        )
-      );
-
-    } catch (e) {
-
-      console.error(
-        "COMEX close error:",
-        e
-      );
-
-      try {
-
-        const saved =
-          JSON.parse(
-            localStorage.getItem(
-              "comexPreviousClose"
-            )
-          );
-
-        if (
-          saved &&
-          typeof saved.gold === "number" &&
-          typeof saved.silver === "number"
-        ) {
-
-          previousClose =
-            saved;
-        }
-
-      } catch (_) {}
+    if (ratio <= 60) {
+      elRatio.classList.add("gold");
+    } else if (ratio > 85) {
+      elRatio.classList.add("silver");
+    } else {
+      elRatio.classList.add("white");
     }
   }
 
@@ -420,7 +286,6 @@
     currentPrice,
     previousPrice
   ) {
-
     element.classList.remove(
       "up",
       "down",
@@ -428,149 +293,98 @@
     );
 
     if (
+      typeof currentPrice !== "number" ||
       typeof previousPrice !== "number" ||
       previousPrice === 0
     ) {
-
       element.textContent = "•";
       element.classList.add("flat");
       return;
     }
 
     const percentMove =
-      ((currentPrice - previousPrice) /
-      previousPrice) * 100;
+      ((currentPrice - previousPrice) / previousPrice) * 100;
 
     const bigMove =
       Math.abs(percentMove) > BIG_MOVE_THRESHOLD;
 
     if (percentMove > 0) {
-
-      element.innerHTML =
-        bigMove
-          ? "<span>▲</span><span>▲</span>"
-          : "<span>▲</span>";
+      element.innerHTML = bigMove
+        ? "<span>▲</span><span>▲</span>"
+        : "<span>▲</span>";
 
       element.classList.add("up");
 
     } else if (percentMove < 0) {
-
-      element.innerHTML =
-        bigMove
-          ? "<span>▼</span><span>▼</span>"
-          : "<span>▼</span>";
+      element.innerHTML = bigMove
+        ? "<span>▼</span><span>▼</span>"
+        : "<span>▼</span>";
 
       element.classList.add("down");
 
     } else {
-
       element.textContent = "•";
       element.classList.add("flat");
     }
   }
 
-  function setRatioColor(ratio) {
+  /*
+    SPOT REFRESH
 
-    elRatio.classList.remove(
-      "gold",
-      "silver",
-      "white"
-    );
-
-    if (ratio <= 60) {
-
-      elRatio.classList.add(
-        "gold"
-      );
-
-    } else if (ratio > 85) {
-
-      elRatio.classList.add(
-        "silver"
-      );
-
-    } else {
-
-      elRatio.classList.add(
-        "white"
-      );
-    }
-  }
-
-  async function refresh() {
-
+    This is the important part:
+    it does NOT wait for Yahoo/COMEX.
+  */
+  async function refreshSpot() {
     try {
+      setStatus("Live", true);
 
-      setStatus(
-        "Live",
-        true
-      );
+      const [gold, silver] = await Promise.all([
+        getSpotJSON(API.gold),
+        getSpotJSON(API.silver)
+      ]);
 
-      const [
-        gold,
-        silver
-      ] =
-        await Promise.all([
-
-          getJSON(
-            API.gold
-          ),
-
-          getJSON(
-            API.silver
-          )
-        ]);
+      currentSpot.gold = gold.price;
+      currentSpot.silver = silver.price;
 
       elGold.textContent =
-        goldUSD.format(
-          gold.price
-        );
+        goldUSD.format(gold.price);
 
       elSilver.textContent =
-        silverUSD.format(
-          silver.price
-        );
+        silverUSD.format(silver.price);
+
+      const ratio =
+        gold.price / silver.price;
+
+      elRatio.textContent =
+        "G/S " + Math.round(ratio);
+
+      setRatioColor(ratio);
 
       updateArrow(
         elGoldArrow,
-        gold.price,
+        currentSpot.gold,
         previousClose.gold
       );
 
       updateArrow(
         elSilverArrow,
-        silver.price,
+        currentSpot.silver,
         previousClose.silver
       );
 
-      const ratio =
-        gold.price /
-        silver.price;
-
-      elRatio.textContent =
-        "G/S " +
-        Math.round(ratio);
-
-      setRatioColor(
-        ratio
-      );
-
       const newest =
-        [
-          gold.updatedAt,
-          silver.updatedAt
-        ]
-        .filter(Boolean)
-        .sort()
-        .pop();
+        [gold.updatedAt, silver.updatedAt]
+          .filter(Boolean)
+          .sort()
+          .pop();
 
-      setTime(
-        newest
-      );
+      setTime(newest);
 
     } catch (e) {
-
-      console.error(e);
+      console.error(
+        "Spot price error:",
+        e
+      );
 
       setStatus(
         "Error",
@@ -579,14 +393,190 @@
     }
   }
 
-  refreshPreviousClose()
-    .then(refresh);
+  function extractPreviousClose(data) {
+    const result =
+      data?.chart?.result?.[0];
 
+    if (!result) {
+      throw new Error(
+        "No futures result"
+      );
+    }
+
+    let close =
+      result.meta?.chartPreviousClose;
+
+    if (typeof close !== "number") {
+      close =
+        result.meta?.previousClose;
+    }
+
+    if (typeof close === "number") {
+      return close;
+    }
+
+    const closes =
+      result
+        ?.indicators
+        ?.quote?.[0]
+        ?.close
+        ?.filter(
+          value =>
+            typeof value === "number"
+        );
+
+    if (
+      closes &&
+      closes.length >= 2
+    ) {
+      return closes[
+        closes.length - 2
+      ];
+    }
+
+    throw new Error(
+      "Previous close unavailable"
+    );
+  }
+
+  /*
+    COMEX / FUTURES REFRESH
+
+    Completely separate from spot refresh.
+  */
+  async function refreshPreviousClose() {
+    try {
+      const results =
+        await Promise.allSettled([
+          getFuturesJSON(COMEX.gold),
+          getFuturesJSON(COMEX.silver)
+        ]);
+
+      if (
+        results[0].status === "fulfilled"
+      ) {
+        try {
+          previousClose.gold =
+            extractPreviousClose(
+              results[0].value
+            );
+        } catch (e) {
+          console.error(
+            "Gold close parse error:",
+            e
+          );
+        }
+      }
+
+      if (
+        results[1].status === "fulfilled"
+      ) {
+        try {
+          previousClose.silver =
+            extractPreviousClose(
+              results[1].value
+            );
+        } catch (e) {
+          console.error(
+            "Silver close parse error:",
+            e
+          );
+        }
+      }
+
+      /*
+        Save whatever successfully loaded.
+      */
+      if (
+        typeof previousClose.gold === "number" ||
+        typeof previousClose.silver === "number"
+      ) {
+        try {
+          localStorage.setItem(
+            "comexPreviousClose",
+            JSON.stringify(
+              previousClose
+            )
+          );
+        } catch (_) {}
+      }
+
+    } catch (e) {
+      console.error(
+        "COMEX refresh error:",
+        e
+      );
+    }
+
+    /*
+      Re-render arrows using whatever
+      close data we successfully have.
+    */
+    updateArrow(
+      elGoldArrow,
+      currentSpot.gold,
+      previousClose.gold
+    );
+
+    updateArrow(
+      elSilverArrow,
+      currentSpot.silver,
+      previousClose.silver
+    );
+  }
+
+  /*
+    Load saved close immediately.
+  */
+  try {
+    const saved =
+      JSON.parse(
+        localStorage.getItem(
+          "comexPreviousClose"
+        )
+      );
+
+    if (saved) {
+      if (
+        typeof saved.gold === "number"
+      ) {
+        previousClose.gold =
+          saved.gold;
+      }
+
+      if (
+        typeof saved.silver === "number"
+      ) {
+        previousClose.silver =
+          saved.silver;
+      }
+    }
+  } catch (_) {}
+
+  /*
+    IMPORTANT:
+
+    Spot prices start immediately.
+    They do not wait for COMEX.
+  */
+  refreshSpot();
+
+  /*
+    COMEX lookup starts separately.
+  */
+  refreshPreviousClose();
+
+  /*
+    Live spot every 15 sec.
+  */
   setInterval(
-    refresh,
+    refreshSpot,
     REFRESH_MS
   );
 
+  /*
+    Previous close every 15 min.
+  */
   setInterval(
     refreshPreviousClose,
     CLOSE_REFRESH_MS
